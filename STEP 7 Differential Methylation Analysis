@@ -1,16 +1,16 @@
 
+#Change to relevant file path
 methylation <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_methylation_hm27_hm450_merged.txt")
 
 sample_clusters_k<- read.csv("sample_clusters_k.csv")
 
 
-# Assuming your original dataframe is named 'original_df'
 library(tidyverse)
 
 # Transpose the dataframe
 methyl_df <- as.data.frame(t(methylation))
 
-# Make the first row as header
+#first row as header
 colnames(methyl_df) <- methyl_df[1,]
 
 # Remove the first row from df
@@ -20,7 +20,7 @@ methyl_df <- methyl_df[-(1:4), ]
 rownames(methyl_df) <- NULL
 
 # Add Sample_id column with sample identifiers
-methyl_df$Sample_ID <- colnames(methylation) [-c(1, 2, 3, 4)] # Excluding Composite.Element.REF
+methyl_df$Sample_ID <- colnames(methylation) [-c(1, 2, 3, 4)] 
 
 # Move Sample_id column to be the first column
 methyl_df <- methyl_df %>% relocate(Sample_ID)
@@ -34,13 +34,13 @@ merged_df <- merged_df %>% relocate(Cluster)
 
 
 
-# Save cleaned_gene_exp as a CSV file
+# Save cleaned_gene_exp as a CSV file for HPC analysis 
 output_file <- "merged_methylation.csv"
 write.csv(merged_df, file = output_file, row.names = FALSE)
 
 cat("Cleaned data saved to", output_file, "\n")
 
-####################### RAN ON HPC #######################################
+
 # Filter data to include only clusters 3 and 5
 filtered_df <- merged_df %>%
   filter(Cluster %in% c(3, 5))
@@ -52,6 +52,7 @@ methyl_long <- filtered_df %>%
 # Ensure Cluster is a factor
 methyl_long$Cluster <- as.factor(methyl_long$Cluster)
 
+####################### RAN ON HPC #######################################
 # Function to perform ANOVA for each methylation site
 perform_anova <- function(methylation_site, data) {
   # Subset data for the current methylation site
@@ -86,7 +87,6 @@ unique_sites <- unique(methyl_long$Methylation)
 results_df <- data.frame(Methylation = character(), anova_p_value = numeric(), shapiro_p_value = numeric(), stringsAsFactors = FALSE)
 
 
-
 # Loop through each methylation site and perform ANOVA, storing the results
 for (site in unique_sites) {
   result <- perform_anova(site, methyl_long)
@@ -116,7 +116,7 @@ results_df <- results_df %>%
 print(results_df)
 
 #################################RAN ON HPC#############################
-#results saved in 
+#results from HPC
 methyl_anova_results <- read.csv("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Project gene exp/anova_and_shapiro_results.csv")
 
 
@@ -124,7 +124,7 @@ methyl_anova_results <- read.csv("C:/Users/lauri/OneDrive - Queen's University B
 
 # Filter rows where any significance column is TRUE
 significant_df <- methyl_anova_results %>%
-  filter( BH_significant == TRUE | fdr_significant == TRUE)
+  filter( BH_significant == TRUE | fdr_significant == TRUE) 
 
 sig_shapiro <- significant_df %>% filter(shapiro_p_value > 0.05)
 
@@ -179,7 +179,7 @@ for (significant_gene in final_results$Methylation) {
 tukey_results_df <- bind_rows(tukey_results_list)
 
 # Print the combined results
-#print(tukey_results_df) #COMMENTED OUT FOR APPENDING CODE 
+print(tukey_results_df) 
 
 
 
@@ -215,7 +215,7 @@ print(top_20_undermethylated)
 
 
 
-################################RAN ON HPC#################################
+
 #REPEAT WITH CLUSTER 5 VS POOLED CLUSTERS 
 
 # Filter data to include Cluster 5 and other clusters pooled together (1, 2, 3, 4, 6)
@@ -230,6 +230,7 @@ methyl_long_P <- filtered_df_P %>%
 # Ensure Cluster is a factor
 methyl_long_P$Cluster <- as.factor(methyl_long_P$Cluster)
 
+################################RAN ON HPC#################################
 # Function to perform ANOVA for each protein
 perform_anova_p <- function(methylation_site, data) {
   # Subset data for the current protein
@@ -292,7 +293,7 @@ print(results_df_P)
 write.csv(anova_results_P, "anova_results_P.csv")
 
 #########################################RAN ON HPC ######################################
-#RESULTS STORED IN 
+#Results from HPC
 methyl_anova_results_P <- read.csv("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Project gene exp/anova_and_shapiro_results_Pooled.csv")
 
 #tukeys FOR methyl_anova_results_P
@@ -337,7 +338,7 @@ for (significant_gene in final_results$Methylation) {
     # Store the result in the list
     tukey_results_list[[significant_gene]] <- tukey_df
   } else {
-    # If not enough data or clusters, add a placeholder
+    # add a placeholder
     tukey_results_list[[significant_gene]] <- data.frame(
       Comparison = NA,
       diff = NA,
@@ -354,8 +355,7 @@ for (significant_gene in final_results$Methylation) {
 tukey_results_df <- bind_rows(tukey_results_list)
 
 # Print the combined results
-#print(tukey_results_df) #cOMMENTED OUT FOR APPENDING CODE 
-
+print(tukey_results_df) 
 
 
 # Merge the significant results with the methylation dataset to get gene names
@@ -364,8 +364,6 @@ merged_results <- merge(tukey_results_df, final_results, by.x = "Methylation")
 # Select relevant columns
 final_results <- merged_results %>%
   select(Methylation, NAME, diff, lwr, upr, "p adj", anova_p_value, bh_corrected_p, bh_significant, bonferroni_corrected_p, bonferroni_significant, fdr_corrected_p, fdr_significant)
-
-
 
 # Sort the genes by `diff` to find hypermethylated and undermethylated genes
 sorted_results <- final_results %>%
@@ -391,7 +389,6 @@ print(top_20_undermethylated_p)
 
 #LOOKING AT HYPOMETHYLATED EXPRESSION
 #NOTE THE TOP 20 HYPERMETHYLATED SAMPLES ARE WITH RESPECT OF OTHER CLUSTERS TO CLUSTER 5 THEREFORE THEY ARE MORE METHYLATED IN THE OTHER CLUSTERS COMPARED TO CLUSTER 5 
-# FROM THIS ANALYSIS WE FOUND THAT THERE IS A INCREASE IN EXPRESSION IN THIS GENES IN CLUSTER 5 COMPARED TO THE OTHERS, MAKES SENSE AS LESS METHYLATION = MORE EXRPRESSION 
 
 filtered_rna_seq_data_50 <- read.csv("cleaned_metastatic_mrna_data.csv")
 
@@ -427,7 +424,7 @@ table(col_clusters)
 # Make df for gene id and clusters
 gene_clusters <- data.frame(Gene_Name = rownames(filtered_rna_seq_data_50), Cluster = row_clusters)
 
-# Extract names
+# Split joint gene names
 gene_names <- strsplit(top_20_undermethylated$NAME, split = "\\;")
 
 # Flatten the list of protein names and remove duplicates
@@ -475,7 +472,7 @@ print(mRNA_comparison_cluster5_vs_3)
 
 # Cluster 5 vs Others
 
-# Extract names
+# Split joint gene names
 gene_names <- strsplit(top_20_undermethylated_p$NAME, split = "\\;")
 
 # Flatten the list of protein names and remove duplicates
@@ -520,10 +517,12 @@ mRNA_comparison_cluster5_vs_others$Difference <- mRNA_comparison_cluster5_vs_oth
 # Print the comparison table
 print(mRNA_comparison_cluster5_vs_others)
 
+
+
 #LOOK AT HYPERMETHYLATED GENES 
 
 
-# Extract names
+# Split joint gene names
 gene_names <- strsplit(top_20_hypermethylated$NAME, split = "\\;")
 
 # Flatten the list of protein names and remove duplicates
@@ -571,7 +570,7 @@ print(mRNA_comparison_cluster5_vs_3)
 
 # Cluster 5 vs Others
 
-# Extract names
+# Split joint gene names
 gene_names <- strsplit(top_20_hypermethylated_p$NAME, split = "\\;")
 
 # Flatten the list of protein names and remove duplicates
@@ -584,7 +583,7 @@ hypermethylated_genes_p <- trimws(hypermethylated_genes_p)
 print(hypermethylated_genes_p)
 
 
-hypermethylated_genes_p <- top_20_hypermethylated_p$NAME  # Ensure this is correct
+hypermethylated_genes_p <- top_20_hypermethylated_p$NAME  # Ensure names are correct
 
 # Extract samples for Cluster 5 and all other clusters
 cluster_5_samples <- names(col_clusters[col_clusters == 5])
