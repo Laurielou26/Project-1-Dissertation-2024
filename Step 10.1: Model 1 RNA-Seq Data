@@ -13,38 +13,27 @@ library(survival)
 library(survminer)
 library(plotROC)
 
-#ML model training attempt 
+
 
 #data being used
 
-filtered_rna_seq_data_50 <- filtered_rna_seq_data_reset_50
-merged_data_df_K
+filtered_rna_seq_data_50 <- read.csv("cleaned_metastatic_mrna_data.csv")
+merged_data_df_K #From previous analyses, this will be in environment 
 
 #visualise data 
 
 table(merged_data_df_K$PATIENT_ID, merged_data_df_K$Cluster_binary)
 
-#Remove hugo symbol from RNA data (leave entrex gene id)
+#Remove hugo symbol from RNA data (leave entrez gene id)
 
 filtered_rna_seq_data_50 <- filtered_rna_seq_data_50 %>% select(-Hugo_Symbol)
-
-#I already filtered the data previously, now remove genes with low variance? This removes alot of data, no further filtering will be applied 
-
-#filtered_rna_seq_data_50$var <- apply(filtered_rna_seq_data_50[-1], 1, var)
-
-#rna_filtered <- filtered_rna_seq_data_50 %>% filter( var >= quantile(var, c(0.5, 0.9))[2])
-
-#rna_filtered <- rna_filtered[1:(ncol(rna_filtered)-2)]
-
 
 #Tranpose rna data 
 
 rna_df <- as.data.frame(t(filtered_rna_seq_data_50[-1]))
 
-
 ## convert all columns from character to numeric
 rna_df<- as.data.frame(apply(rna_df, 2 ,as.numeric))
-
 
 ## add genes ids as column names
 colnames(rna_df) <- filtered_rna_seq_data_50$Entrez_Gene_Id
@@ -53,8 +42,6 @@ colnames(rna_df) <- filtered_rna_seq_data_50$Entrez_Gene_Id
 ## add sample names as a column
 rna_df$sample <- colnames(filtered_rna_seq_data_50[-1])
 
-# Move Sample column to be the first column
-#rna_df <- rna_df %>% relocate(sample)
 
 # Ensure unique column names
 colnames(rna_df) <- make.names(colnames(rna_df), unique = TRUE)
@@ -65,25 +52,11 @@ merged_rna_df <- left_join(rna_df, sample_clusters_k6, by = c("sample" = "Sample
 # View the merged data frame
 head(merged_rna_df[1:5]) 
 
-# Move cluster column to be the first column
-#merged_rna_df <- merged_rna_df %>% relocate(Cluster)
-
-# Convert cluster label to binary (1 for cluster 5, 0 for others)
-#merged_rna_df$Cluster_binary <- ifelse(merged_rna_df$Cluster == 5, "Cluster 5", "Other Clusters")
-
-# Convert Cluster_binary to a factor
-#merged_rna_df$Cluster_binary <- factor(merged_rna_df$Cluster_binary, levels = c(0, 1))
-
-# Move cluster binary column to be the first column
-#merged_rna_df <- merged_rna_df %>% relocate(Cluster_binary)
-
 #make cluster a factor 
-
 merged_rna_df$Cluster <- as.factor(merged_rna_df$Cluster)
 
 
 #now need to remove highly correlated genes 
-
 
 ngenes <- ncol(merged_rna_df)-2
 
@@ -94,9 +67,9 @@ highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.7)
 
 #Split data into training and test sets 
 
-#TrainingDataIndex <- createDataPartition(merged_rna_df$Cluster, p=0.75, list = FALSE)
-#training_samples <- merged_rna_df[TrainingDataIndex, -highlyCorrelated]
-#test_samples <- merged_rna_df[-TrainingDataIndex, -highlyCorrelated]
+TrainingDataIndex <- createDataPartition(merged_rna_df$Cluster, p=0.75, list = FALSE)
+training_samples <- merged_rna_df[TrainingDataIndex, -highlyCorrelated]
+test_samples <- merged_rna_df[-TrainingDataIndex, -highlyCorrelated]
 
 # Load the saved partition indices
 TrainingDataIndex <- readRDS("TrainingDataIndex.rds")
