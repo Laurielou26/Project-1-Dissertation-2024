@@ -80,7 +80,7 @@ metastatic_columns <- metastatic_columns[metastatic_columns %in% colnames(filter
 # Remove metastatic samples from RNA-seq data
 filtered_rna_seq_data_50 <- dplyr::select(filtered_data_50, -all_of(metastatic_columns))
 
-# Remove metastatic samples from RNA-seq data
+# Remove metastatic samples from RNA-seq data, making a reset variable
 filtered_rna_seq_data_reset_50 <- dplyr::select(filtered_data_50, -all_of(metastatic_columns))
 
 # Print the first few rows of the filtered RNA-seq data to confirm the removal
