@@ -1,0 +1,250 @@
+#Load libraries 
+
+library(tidyverse)
+library(caret) 
+library(Rcpp)
+library(plotly)
+library(ggfortify)
+library(kknn)
+library(reshape2)
+library(Rcpp)
+library(doParallel)
+library(survival)
+library(survminer)
+library(plotROC)
+
+#ML model training attempt 
+
+#data being used
+
+filtered_rna_seq_data_50 <- filtered_rna_seq_data_reset_50
+merged_data_df_K
+
+#visualise data 
+
+table(merged_data_df_K$PATIENT_ID, merged_data_df_K$Cluster_binary)
+
+#Remove hugo symbol from RNA data (leave entrex gene id)
+
+filtered_rna_seq_data_50 <- filtered_rna_seq_data_50 %>% select(-Hugo_Symbol)
+
+#I already filtered the data previously, now remove genes with low variance? This removes alot of data, no further filtering will be applied 
+
+#filtered_rna_seq_data_50$var <- apply(filtered_rna_seq_data_50[-1], 1, var)
+
+#rna_filtered <- filtered_rna_seq_data_50 %>% filter( var >= quantile(var, c(0.5, 0.9))[2])
+
+#rna_filtered <- rna_filtered[1:(ncol(rna_filtered)-2)]
+
+
+#Tranpose rna data 
+
+rna_df <- as.data.frame(t(filtered_rna_seq_data_50[-1]))
+
+
+## convert all columns from character to numeric
+rna_df<- as.data.frame(apply(rna_df, 2 ,as.numeric))
+
+
+## add genes ids as column names
+colnames(rna_df) <- filtered_rna_seq_data_50$Entrez_Gene_Id
+
+
+## add sample names as a column
+rna_df$sample <- colnames(filtered_rna_seq_data_50[-1])
+
+# Move Sample column to be the first column
+#rna_df <- rna_df %>% relocate(sample)
+
+# Ensure unique column names
+colnames(rna_df) <- make.names(colnames(rna_df), unique = TRUE)
+
+## append cluster assignments  
+merged_rna_df <- left_join(rna_df, sample_clusters_k6, by = c("sample" = "Sample_ID"))
+
+# View the merged data frame
+head(merged_rna_df[1:5]) 
+
+# Move cluster column to be the first column
+#merged_rna_df <- merged_rna_df %>% relocate(Cluster)
+
+# Convert cluster label to binary (1 for cluster 5, 0 for others)
+#merged_rna_df$Cluster_binary <- ifelse(merged_rna_df$Cluster == 5, "Cluster 5", "Other Clusters")
+
+# Convert Cluster_binary to a factor
+#merged_rna_df$Cluster_binary <- factor(merged_rna_df$Cluster_binary, levels = c(0, 1))
+
+# Move cluster binary column to be the first column
+#merged_rna_df <- merged_rna_df %>% relocate(Cluster_binary)
+
+#make cluster a factor 
+
+merged_rna_df$Cluster <- as.factor(merged_rna_df$Cluster)
+
+
+#now need to remove highly correlated genes 
+
+
+ngenes <- ncol(merged_rna_df)-2
+
+correlationMatrix <- cor(merged_rna_df[1:ngenes])
+
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.7)
+
+
+#Split data into training and test sets 
+
+#TrainingDataIndex <- createDataPartition(merged_rna_df$Cluster, p=0.75, list = FALSE)
+#training_samples <- merged_rna_df[TrainingDataIndex, -highlyCorrelated]
+#test_samples <- merged_rna_df[-TrainingDataIndex, -highlyCorrelated]
+
+# Load the saved partition indices
+TrainingDataIndex <- readRDS("TrainingDataIndex.rds")
+training_samples <- readRDS("training_samples.rds")
+test_samples <- readRDS("test_samples.rds")
+
+
+
+ngenes <- ncol(training_samples) - 2
+
+dim(training_samples)
+dim(test_samples)
+
+
+#model controls 
+
+
+set.seed(123)
+
+ctrl <- trainControl(
+  method = "repeatedcv",
+  number = 15,
+  repeats = 10,
+  classProbs = T,
+  savePredictions = T,
+  summaryFunction = multiClassSummary,
+  verboseIter = TRUE,
+  allowParallel = TRUE
+)
+
+# Create valid variable names for class levels
+training_samples$Cluster <- make.names(training_samples$Cluster)
+
+rf.model_cv_6<- train(x = training_samples[1:ngenes],
+                      y= training_samples$Cluster,
+                      method = "ranger",
+                      metric = "ROC",
+                      importance= 'impurity',
+                      trControl = ctrl,
+                      num.trees = 750)
+
+rf.model_cv_6
+
+rf.model_cv_6 <- saveRDS(rf.model_cv_6, file = "rf.model_cv_6.rds")
+rf.model_cv_6 <- readRDS("rf.model_cv_6.rds")
+
+rf.model_cv_roc <- readRDS("rf_model_roc.rds")#same as rf.model_cv_6
+
+
+#predictive power 
+
+#get the predictions
+rfcv_pred_6 <- predict(rf.model_cv_6, test_samples[1:ngenes])
+
+# Create valid variable names for class levels
+test_samples$Cluster <- make.names(test_samples$Cluster)
+
+# compare the predictins to the actual classifications
+rfcv_cm_6 <- caret::confusionMatrix(rfcv_pred_6, as.factor(test_samples$Cluster))
+
+rfcv_cm_6
+
+
+#LDA MODEL 
+set.seed(123)
+
+
+lda.model <- train(x = training_samples[1:ngenes],
+                   y= training_samples$Cluster,
+                   method = "lda",
+                   metric = "ROC",
+                   trControl = ctrl)
+
+lda.model <- readRDS("lda_model_roc.rds")
+
+
+lda_pred <- predict(lda.model, test_samples[1:ngenes])
+lda_pred <- factor(lda_pred, levels = levels(as.factor(test_samples$Cluster)))
+lda_cm <- caret::confusionMatrix(lda_pred, as.factor(test_samples$Cluster))
+# view confusion matrix
+lda_cm
+
+
+#KNN
+set.seed(123)
+
+knn.model <- train(x = training_samples[1:ngenes],
+                   y= training_samples$Cluster,
+                   method = "kknn",
+                   metric = "ROC",
+                   trControl = ctrl)
+
+knn.model <- readRDS("knn_model_roc.rds")
+
+
+knn_pred <- predict(knn.model, test_samples[1:ngenes])
+knn_cm <- caret::confusionMatrix(knn_pred, as.factor(test_samples$Cluster))
+# view confusion matrix
+knn_cm
+
+
+#AUC 
+
+# Extract predictions
+rf_pred <- rf.model_cv_6$pred
+lda_pred <- lda.model$pred
+knn_pred <- knn.model$pred
+
+# Assign model names
+rf_pred$model <- "RF"
+lda_pred$model <- "LDA"
+knn_pred$model <- "KNN"
+
+# Align column structures for each model's predictions
+rf_pred_aligned <- rf_pred %>%
+  select(pred, obs, X1:X6, rowIndex, Resample) %>%
+  mutate(model = "RF")
+
+lda_pred_aligned <- lda_pred %>%
+  select(pred, obs, X1:X6, rowIndex, Resample) %>%
+  mutate(model = "LDA")
+
+knn_pred_aligned <- knn_pred %>%
+  select(pred, obs, X1:X6, rowIndex, Resample) %>%
+  mutate(model = "KNN")
+
+
+# Combine aligned predictions
+all_pred <- rbind(rf_pred_aligned, lda_pred_aligned, knn_pred_aligned)
+
+
+# Plot ROC curves
+g <- ggplot(all_pred, aes(m = X5, d = as.numeric(obs == "X5"), group = model, colour = model)) + 
+  geom_roc(n.cuts = 0) + 
+  style_roc()
+
+print(g)
+
+library(pROC)
+
+# Calculate AUC for each model
+rf_auc <- auc(as.numeric(rf_pred_aligned$obs == "X5"), rf_pred_aligned$X5)
+lda_auc <- auc(as.numeric(lda_pred_aligned$obs == "X5"), lda_pred_aligned$X5)
+knn_auc <- auc(as.numeric(knn_pred_aligned$obs == "X5"), knn_pred_aligned$X5)
+
+aucs <- data.frame(
+  model = c("RF", "LDA", "KNN"),
+  AUC = c(rf_auc, lda_auc, knn_auc)
+)
+
+print(aucs)
