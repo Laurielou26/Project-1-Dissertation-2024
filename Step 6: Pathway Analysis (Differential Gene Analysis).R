@@ -1,5 +1,8 @@
 library(tidyverse)
+if (!requireNamespace("ggrepel", quietly = TRUE))
+  install.packages("ggrepel")
 library(ggrepel)
+
 #subset data 
 filtered_rna_seq_data_50 <- read.csv("cleaned_metastatic_mrna_data.csv")
 
@@ -35,6 +38,7 @@ table(col_clusters)
 
 #  'filtered_rna_seq_data_50' contains mRNA expression data
 # and 'col_clusters' contains the cluster assignments for each sample
+
 cluster_5_samples <- colnames(filtered_rna_seq_data_50)[col_clusters == 5]
 other_samples <- colnames(filtered_rna_seq_data_50)[col_clusters != 5]
 
@@ -44,9 +48,11 @@ mRNA_others <- filtered_rna_seq_data_50[, other_samples]
 
 #DIFFERENTIAL EXPRESSION ANALYSIS 
 
+if (!requireNamespace("limma", quietly = TRUE))
+  install.packages("limma")
 library(limma)
 
-# Step 1: Prepare the data
+#  Prepare the data
 mRNA_cluster_5 <- filtered_rna_seq_data_scale[, cluster_5_samples]
 mRNA_others <- filtered_rna_seq_data_scale[, other_samples]
 
@@ -54,12 +60,12 @@ mRNA_others <- filtered_rna_seq_data_scale[, other_samples]
 all_data <- cbind(mRNA_cluster_5, mRNA_others)
 condition <- factor(c(rep("Cluster_5", ncol(mRNA_cluster_5)), rep("Others", ncol(mRNA_others))))
 
-# Step 2: Create the design matrix
+# Create the design matrix
 design <- model.matrix(~condition)
 print("Design matrix:")
 head(design)
 
-# Step 3: Fit the model
+#  Fit the model
 fit <- lmFit(all_data, design)
 fit <- eBayes(fit)
 
@@ -67,7 +73,7 @@ fit <- eBayes(fit)
 print("Coefficient names:")
 head(colnames(fit$coefficients))
 
-# Step 4: Get the results using the correct coefficient name
+#  Get the results using the correct coefficient name
 results <- topTable(fit, coef = "conditionOthers", adjust = "BH", number = Inf)
 
 # View the first few significant DEGs
@@ -77,15 +83,15 @@ head(results)
 # Filter for significant DEGs
 significant_degs <- results[results$adj.P.Val < 0.05, ]
 
-# Step 5: View results
+#  View results
 head(significant_degs)
 
 # Perform Pathway Enrichment Analysis
-#if (!requireNamespace("BiocManager", quietly = TRUE))
-  #install.packages("BiocManager")
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
 
-#BiocManager::install("clusterProfiler")
-#BiocManager::install("org.Hs.eg.db")
+BiocManager::install("clusterProfiler")
+BiocManager::install("org.Hs.eg.db")
 
 library(clusterProfiler)
 library(org.Hs.eg.db)
@@ -100,16 +106,16 @@ keytypes(org.Hs.eg.db)
 # Remove the _1 suffix from row names
 rownames(significant_degs) <- sub("_1$", "", rownames(significant_degs))
 
-# Verify the change
+# Verify
 head(rownames(significant_degs))
 
 # Remove the _1 suffix from row names
 rownames(significant_degs) <- sub("_1$", "", rownames(significant_degs))
 
-# Verify the change
+# Verify 
 head(rownames(significant_degs))
 
-# rownames(significant_degs) are Entrez IDs after removing suffix
+# rownames are Entrez IDs after removing suffix
 entrez_ids <- rownames(significant_degs)
 
 # Convert Entrez IDs to Gene Symbols
@@ -125,7 +131,7 @@ rownames(significant_degs_annotated) <- significant_degs_annotated$SYMBOL
 # Drop unnecessary columns
 significant_degs_annotated <- significant_degs_annotated[ , !(names(significant_degs_annotated) %in% c("ENTREZID", "GENENAME"))]
 
-# View the updated results
+# View the  results
 head(significant_degs_annotated)
 
 # Save the annotated results
@@ -141,14 +147,16 @@ enrich_result <- enrichKEGG(gene = entrez_ids, organism = 'hsa')
 # View the results
 head(enrich_result)
 
+if (!requireNamespace("enrichplot", quietly = TRUE))
+  install.packages("enrichplot")
 library(enrichplot)
 
 # Dotplot for KEGG enrichment
 dotplot(enrich_result)
 
-
 # Barplot for KEGG enrichment
 barplot(enrich_result)
+
 
 #Volcano Plots 
 
