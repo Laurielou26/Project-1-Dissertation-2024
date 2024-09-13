@@ -71,11 +71,17 @@ TrainingDataIndex <- createDataPartition(merged_rna_df$Cluster, p=0.75, list = F
 training_samples <- merged_rna_df[TrainingDataIndex, -highlyCorrelated]
 test_samples <- merged_rna_df[-TrainingDataIndex, -highlyCorrelated]
 
+# Save the indices to a file for future use
+#saveRDS(TrainingDataIndex, file = "TrainingDataIndex.rds")
+
+# Save the training and test data frames
+#saveRDS(training_samples, file = "training_samples.rds")
+#saveRDS(test_samples, file = "test_samples.rds")
+
 # Load the saved partition indices
 TrainingDataIndex <- readRDS("TrainingDataIndex.rds")
 training_samples <- readRDS("training_samples.rds")
 test_samples <- readRDS("test_samples.rds")
-
 
 
 ngenes <- ncol(training_samples) - 2
@@ -113,11 +119,8 @@ rf.model_cv_6<- train(x = training_samples[1:ngenes],
 
 rf.model_cv_6
 
-rf.model_cv_6 <- saveRDS(rf.model_cv_6, file = "rf.model_cv_6.rds")
+#Model ran on HPC, need to load in results 
 rf.model_cv_6 <- readRDS("rf.model_cv_6.rds")
-
-rf.model_cv_roc <- readRDS("rf_model_roc.rds")#same as rf.model_cv_6
-
 
 #predictive power 
 
@@ -127,7 +130,7 @@ rfcv_pred_6 <- predict(rf.model_cv_6, test_samples[1:ngenes])
 # Create valid variable names for class levels
 test_samples$Cluster <- make.names(test_samples$Cluster)
 
-# compare the predictins to the actual classifications
+# view confusion matrix
 rfcv_cm_6 <- caret::confusionMatrix(rfcv_pred_6, as.factor(test_samples$Cluster))
 
 rfcv_cm_6
@@ -143,6 +146,7 @@ lda.model <- train(x = training_samples[1:ngenes],
                    metric = "ROC",
                    trControl = ctrl)
 
+#Model ran on HPC, need to load in results 
 lda.model <- readRDS("lda_model_roc.rds")
 
 
@@ -162,6 +166,7 @@ knn.model <- train(x = training_samples[1:ngenes],
                    metric = "ROC",
                    trControl = ctrl)
 
+#Model ran on HPC, need to load in results 
 knn.model <- readRDS("knn_model_roc.rds")
 
 
@@ -171,7 +176,7 @@ knn_cm <- caret::confusionMatrix(knn_pred, as.factor(test_samples$Cluster))
 knn_cm
 
 
-#AUC 
+#Calculate AUC 
 
 # Extract predictions
 rf_pred <- rf.model_cv_6$pred
