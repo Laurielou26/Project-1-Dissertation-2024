@@ -14,7 +14,7 @@ new_packages <- required_packages[!(required_packages %in% installed.packages()[
 if(length(new_packages)) install.packages(new_packages)
 lapply(required_packages, library, character.only = TRUE)
 
-# Load data
+# Load data (add relevant file paths)
 data_clinical_patient <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_clinical_patient.txt", comment.char="#")
 data_clinical_sample <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_clinical_sample.txt", comment.char="#")
 
@@ -149,7 +149,7 @@ generate_bar_plot <- function(data, x_var, y_var, fill_var, title) {
   print(plot_obj)
 }
 
-# Analysis
+# Clinical Patient Analysis
 
 # Convert variables to factors
 merged_data_df_K <- merged_data_df_K %>%
@@ -194,7 +194,7 @@ generate_boxplot <- function(data, continuous_var, title) {
 }
 
 
-# Analyze clinical sample variables
+# Analyze clinical sample categorical variables
 clinical_sample_vars <- c("TISSUE_SOURCE_SITE_CODE")
 
 
@@ -236,7 +236,7 @@ for (var in continuous_vars_clinical) {
 
 
 
-# Group Comparisons
+# Group Comparisons (Cluster 5 vs Pooled Clusters)
 
 # For main data
 group_data_df <- merged_data_df_K %>%
@@ -297,7 +297,7 @@ plot_obj_clinical_group <- ggplot(merged_data_df_K_clinical, aes(x = Cluster, y 
        geom_boxplot(outlier.shape = NA) +  # Hide outliers
        labs(x = "Group", y = "MSI_SCORE_MANTIS", title = "Distribution of MSI_SCORE_MANTIS Across Groups") +
       theme_minimal()+
-  scale_y_continuous(limits = c(0.2, 0.4), breaks = seq(0, 0.5, by = 0.05))  # Adjust the y-axis scale
+  scale_y_continuous(limits = c(0.2, 0.4), breaks = seq(0, 0.5, by = 0.05))  # Adjust the y-axis scale, improves visualisation 
 
 # Print the plot object
  print(plot_obj_clinical_group)
