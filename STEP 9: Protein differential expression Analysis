@@ -1,12 +1,10 @@
 # Load necessary libraries
 library(tidyverse)
 
-# Read in the data
+# Read in the data (Change to relevant file paths)
 protein <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_rppa.txt")
-copy_number <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_cna.txt")
-methylation <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_methylation_hm27_hm450_merged.txt")
 
-# Example of loading sample clusters
+# Load in sample clusters
 sample_clusters_k<- read.csv("sample_clusters_k.csv")
 
 # Process protein data
@@ -38,6 +36,7 @@ perform_anova <- function(protein_name, data) {
   if (nlevels(factor(subset_data$Cluster)) > 1) {
     anova_result <- aov(Expression ~ Cluster, data = subset_data)
     p_value <- summary(anova_result)[[1]][["Pr(>F)"]][1]
+   
     # Perform Shapiro-Wilk test on the residuals of the ANOVA
     shapiro_test <- shapiro.test(residuals(anova_result))
     shapiro_p_value <- shapiro_test$p.value
@@ -76,14 +75,19 @@ significant_df <- anova_results %>%
 
 shapiro_sig_results <- significant_df %>% filter(shapiro_p_value > 0.05)
 
+#reload protein data for merging 
 protein <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_rppa.txt")
 
-merged_results <- merge(significant_df, protein, by.x = "Protein", by.y = "Composite.Element.REF")
+#merge for protein names 
+merged_results <- merge(shapiro_sig_results, protein, by.x = "Protein", by.y = "Composite.Element.REF")
+
+#remove unnecessary columns 
 final_results <- merged_results %>%
   select(Protein, anova_p_value, BH_corrected_p, bonferroni_corrected_p, fdr_corrected_p)
 
 print(final_results$Protein)
 
+#Tukey's HSD test
 tukey_results_list <- list()
 for (significant_protein in final_results$Protein) {
   subset_data <- protein_long %>% filter(Protein == significant_protein)
@@ -130,7 +134,9 @@ print("Top 20 Underpro")
 print(top_20_underpro)
 
 
+#Repeat for Cluster 5 vs pooled clusters 
 
+#reload protein data 
 protein <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_rppa.txt")
 
 # Filter data to include Cluster 5 vs pooled clusters (1, 2, 3, 4, 6)
@@ -152,6 +158,7 @@ perform_anova_p <- function(protein_name, data) {
   if (nlevels(factor(subset_data_P$Cluster)) > 1) {
     anova_result_P <- aov(Expression ~ Cluster, data = subset_data_P)
     p_value <- summary(anova_result_P)[[1]][["Pr(>F)"]][1]
+   
     # Perform Shapiro-Wilk test on the residuals of the ANOVA
     shapiro_test <- shapiro.test(residuals(anova_result_P))
     shapiro_p_value <- shapiro_test$p.value
@@ -239,7 +246,6 @@ print(top_20_underpro_p)
 
 #LOOKING AT HYPOMETHYLATED EXPRESSION
 #NOTE THE TOP 20 HYPERMETHYLATED SAMPLES ARE WITH RESPECT OF OTHER CLUSTERS TO CLUSTER 5 THEREFORE THEY ARE MORE METHYLATED IN THE OTHER CLUSTERS COMPARED TO CLUSTER 5 
-# FROM THIS ANALYSIS WE FOUND THAT THERE IS A INCREASE IN EXPRESSION IN THIS GENES IN CLUSTER 5 COMPARED TO THE OTHERS, MAKES SENSE AS LESS METHYLATION = MORE EXRPRESSION 
 
 filtered_rna_seq_data_50 <- read.csv("cleaned_metastatic_mrna_data.csv")
 
@@ -275,7 +281,7 @@ table(col_clusters)
 # Make df for gene id and clusters
 gene_clusters <- data.frame(Gene_Name = rownames(filtered_rna_seq_data_50), Cluster = row_clusters)
 
-# Extract protein names from the 'Protein' column
+# Split protein names if necessary
 protein_names <- strsplit(top_20_underpro$Protein, split = "\\|")
 
 # Flatten the list of protein names and remove duplicates
@@ -321,7 +327,7 @@ print(mRNA_comparison_cluster5_vs_3)
 
 # Cluster 5 vs Others
 
-# Extract protein names from the 'Protein' column
+# Split protein names if necessary
 protein_names_p <- strsplit(top_20_underpro_p$Protein, split = "\\|")
 
 # Flatten the list of protein names and remove duplicates
@@ -369,7 +375,7 @@ print(mRNA_comparison_cluster5_vs_others)
 
 
 
-# Extract protein names from the 'Protein' column
+# Split protein names if necessary
 protein_names <- strsplit(top_20_hyperpro$Protein, split = "\\|")
 
 # Flatten the list of protein names and remove duplicates
@@ -414,7 +420,7 @@ print(mRNA_comparison_cluster5_vs_3)
 
 # Cluster 5 vs Others
 
-# Extract protein names from the 'Protein' column
+# Split protein names if necessary
 protein_names_p <- strsplit(top_20_hyperpro_p$Protein, split = "\\|")
 
 # Flatten the list of protein names and remove duplicates
