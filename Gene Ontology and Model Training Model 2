@@ -89,6 +89,60 @@ ggplot(top_20_varImp_methyl, aes(x = reorder(Gene, Overall), y = Overall)) +
   theme_minimal() +
   coord_flip()  # Optional: flip the coordinates to make the plot horizontal
 
+#GENE ONTOLOGY 
+
+# Install and load the required packages
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("clusterProfiler")
+BiocManager::install("org.Hs.eg.db")  # For human gene annotation, use the appropriate package for your species
+
+library(clusterProfiler)
+library(org.Hs.eg.db)
+
+# List of top 20 genes
+top_20_genes <- top_20_varImp_methyl$Gene
+
+# Convert gene symbols to Entrez IDs using bitr
+top_20_genes_entrez <- bitr(top_20_genes, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+# Identify unmapped genes
+unmapped_genes <- setdiff(top_20_genes, top_20_genes_entrez$SYMBOL)
+
+# Manually create a mapping for the unmapped genes
+manual_mapping <- data.frame(
+  SYMBOL = c("GENE1", "GENE2"), # Replace with actual gene symbols
+  ENTREZID = c("12345", "67890") # Replace with corresponding Entrez IDs
+)
+
+# Combine automatic and manual mappings
+complete_mapping <- rbind(top_20_genes_entrez, manual_mapping)
+
+# Check the complete mapping
+print(complete_mapping)
+
+
+# Perform GO enrichment analysis
+go_enrich <- enrichGO(gene         = top_20_genes_entrez$ENTREZID,
+                      OrgDb        = org.Hs.eg.db,
+                      keyType      = 'ENTREZID',
+                      ont          = "ALL",  # Can be "BP", "MF", "CC", or "ALL"
+                      pAdjustMethod = "BH",
+                      pvalueCutoff = 0.05,
+                      qvalueCutoff = 0.2)
+
+# View the results
+summary(go_enrich)
+
+# Visualize the GO enrichment results
+dotplot(go_enrich, showCategory=20)
+
+# Save the dot plot as a PNG file
+ggsave("GO_enrichment_dotplot_methyl.png", plot = last_plot(), width = 10, height = 8, dpi = 300)
+
+
+
 
 #Train model 
 
