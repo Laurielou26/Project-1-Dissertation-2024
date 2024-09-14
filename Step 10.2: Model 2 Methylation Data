@@ -13,18 +13,13 @@ library(survival)
 library(survminer)
 library(plotROC)
 
-#data being used 
+#data being used, change to relevant file paths 
 methylation_data<- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_methylation_hm27_hm450_merged.txt")
-merged_data_df_K
+merged_data_df_K # From previous analyses, will be in environment
 
 methylation <- methylation_data
 
 #remove metastatic samples
-
-
-#METHYLATION 
-
-head(methylation)
 
 # Option 1: Remove rows with NA values
 methylation <- methylation[complete.cases(methylation[, -(1:4)]), ]
@@ -74,8 +69,8 @@ methyl_df <- as.data.frame(t(filtered_meta_methyl))
 # Make the first row as header
 colnames(methyl_df) <- methyl_df[2,]
 
-# Remove the first four row from df
-methyl_df <- methyl_df[-1, ] # 4 times 
+# Remove the first four row from df, to remove unnecessary rows
+methyl_df <- methyl_df[-1, ] 
 methyl_df <- methyl_df[-1, ]
 methyl_df <- methyl_df[-1, ]
 methyl_df <- methyl_df[-1, ]
@@ -83,11 +78,13 @@ methyl_df <- methyl_df[-1, ]
 # Reset row names to NULL
 rownames(methyl_df) <- NULL
 
+#Transpose df
 methyl_df <- t(methyl_df)
 
+#Store row names 
 rownames_original <- rownames(methyl_df)
 
-# Step 2: Convert the data to numeric (by converting the entire matrix)
+# Step 2: Convert the data to numeric 
 methyl_df_numeric <- apply(methyl_df, 2, as.numeric)
 
 # Step 3: Reassign the row names
@@ -102,7 +99,7 @@ methyl_df_numeric_df <- as.data.frame(methyl_df_numeric)
 #add a new with median expression per gene 
 methyl_df_numeric_df$med <- apply(methyl_df_numeric_df ,1 ,median)
 
-# Calculate variance while removing NAs, 2 means function is applied to
+# Calculate variance while removing NAs, 
 methyl_df_numeric_df$var <- apply(methyl_df_numeric_df, 1, var)
 
 # Filter based on variance threshold
@@ -114,6 +111,7 @@ methyl_filtered <- methyl_filtered[1:(ncol(methyl_filtered)-2)]
 # View the filtered data
 head(methyl_filtered)
 
+#transpose 
 methyl_filtered <- t(methyl_filtered)
 methyl_filtered <- as.data.frame(methyl_filtered)
 
@@ -139,13 +137,10 @@ str(numeric_df$Sample_ID)
 numeric_df <- na.omit(numeric_df)
 
 #make cluster a factor 
-
 numeric_df$Cluster <- as.factor(numeric_df$Cluster)
 
 
 #now need to remove highly correlated genes 
-
-
 ngenes <- ncol(numeric_df)-2
 
 correlationMatrix <- cor(numeric_df[1:ngenes])
@@ -173,7 +168,6 @@ test_samples_m <- readRDS("test_samples_m_save.rds")
 
 
 ngenes <- ncol(training_samples_m) - 2
-
 dim(training_samples_m)
 dim(test_samples_m)
 
@@ -203,7 +197,7 @@ rf.model_cv_m <- train(x = training_samples_m[1:ngenes],
                            trControl = ctrl,
                            num.trees = 750)
 
-rf.model_cv_m <- readRDS("rf_model_cv_m4.rds")
+rf.model_cv_m <- readRDS("rf_model_cv_m4.rds") #Ran on HPC, need to load in HPC file 
 
 
 #predictive power 
@@ -232,7 +226,7 @@ lda.model_m <- train(x = training_samples_m[1:ngenes],
                        metric = "ROC",
                        trControl = ctrl)
 
-lda.model_m <- readRDS("lda_model_m_roc2.rds")
+lda.model_m <- readRDS("lda_model_m_roc2.rds") #Ran on HPC, need to load in HPC file 
 
 
 lda_pred_m <- predict(lda.model_m, test_samples_m[1:ngenes])
@@ -251,7 +245,7 @@ knn.model_m <- train(x = training_samples_m[1:ngenes],
                          metric = "ROC",
                          trControl = ctrl)
 
-knn.model_m <- readRDS("knn_model_m_roc2.rds")
+knn.model_m <- readRDS("knn_model_m_roc2.rds") #Ran on HPC, need to load in HPC file 
 
 knn_pred_m <- predict(knn.model_m, test_samples_m[1:ngenes])
 knn_cm_m <- caret::confusionMatrix(knn_pred_m, as.factor(test_samples_m$Cluster))
@@ -308,229 +302,5 @@ aucs <- data.frame(
 )
 
 print(aucs)
-
-
-
-
-
-#Gradiant boosting 
-set.seed(123)
-# Gradient Boosting Machines (GBM)
-gbmGrid <- expand.grid(interaction.depth = c(1, 5, 9),
-                       n.trees = c(100, 500, 1000),
-                       shrinkage = c(0.01, 0.1),
-                       n.minobsinnode = 10)
-
-gbm.model_m <- train(x = training_samples_m[1:ngenes],
-                     y = training_samples_m$Cluster,
-                     method = "gbm",
-                     metric = "ROC",
-                     tuneGrid = gbmGrid,
-                     trControl = ctrl,
-                     verbose = FALSE)
-
-# Predictive power
-gbm_pred_m <- predict(gbm.model_m, test_samples_m[1:ngenes])
-gbm_cm_m <- caret::confusionMatrix(gbm_pred_m, as.factor(test_samples_m$Cluster))
-gbm_cm_m
-
-
-
-# Support Vector Machines (SVM)
-svmGrid <- expand.grid(C = c(0.1, 1, 10),
-                       sigma = c(0.01, 0.05, 0.1))
-
-svm.model_m <- train(x = training_samples_m[1:ngenes],
-                     y = training_samples_m$Cluster,
-                     method = "svmRadial",
-                     metric = "ROC",
-                     tuneGrid = svmGrid,
-                     trControl = ctrl)
-
-# Predictive power
-svm_pred_m <- predict(svm.model_m, test_samples_m[1:ngenes])
-svm_cm_m <- caret::confusionMatrix(svm_pred_m, as.factor(test_samples_m$Cluster))
-svm_cm_m
-
-# Extreme Gradient Boosting (XGBoost)
-xgbGrid <- expand.grid(nrounds = c(100, 200),
-                       max_depth = c(3, 6, 9),
-                       eta = c(0.01, 0.1, 0.3),
-                       gamma = 0,
-                       colsample_bytree = 1,
-                       min_child_weight = 1,
-                       subsample = 1)
-
-xgb.model_m <- train(x = training_samples_m[1:ngenes],
-                     y = training_samples_m$Cluster,
-                     method = "xgbTree",
-                     metric = "ROC",
-                     tuneGrid = xgbGrid,
-                     trControl = ctrl)
-
-# Predictive power
-xgb_pred_m <- predict(xgb.model_m, test_samples_m[1:ngenes])
-xgb_cm_m <- caret::confusionMatrix(xgb_pred_m, as.factor(test_samples_m$Cluster))
-xgb_cm_m
-
-
-# Neural Networks (NN)
-nnGrid <- expand.grid(size = c(5, 10), decay = c(0.1, 0.5))
-
-nn.model_m <- train(
-  x = training_samples_m[1:ngenes],
-  y = training_samples_m$Cluster,
-  method = "nnet",
-  metric = "ROC",
-  tuneGrid = nnGrid,
-  trControl = ctrl,
-  linout = FALSE
-)
-
-
-
-#Try and improve Rf and lda 
-
-library(caret)
-library(MASS)
-
-set.seed(123)
-
-
-# Define the train control with k-fold cross-validation
-train_control <- trainControl(method = "cv", number = 5)
-
-# Train the LDA model using cross-validation
-lda_model <- train(training_samples_m[1:ngenes], training_samples_m$Cluster, method = "lda", trControl = train_control)
-
-# Print the results
-print(lda_model)
-
-
-# Train the LDA model with different shrinkage values
-lda_grid <- expand.grid(.lambda = c(0, 0.1, 0.5, 0.9))
-
-lda_model_shrink <- train(training_samples_m[1:ngenes], training_samples_m$Cluster, method = "lda2", trControl = train_control, tuneGrid = lda_grid)
-
-# Print the best model
-print(lda_model_shrink)
-
-
-library(ada)
-
-# Train an AdaBoost model with LDA as the base learner
-ada_model <- train(training_samples_m[1:ngenes], training_samples_m$Cluster, method = "ada", trControl = train_control, tuneGrid = data.frame(mfinal=100))
-
-# Print the results
-print(ada_model)
-
-
-
-
-set.seed(123)
-
-ctrl <- trainControl(
-  method = "repeatedcv",
-  number = 15,
-  repeats = 10,
-  classProbs = T,
-  savePredictions = T,
-  summaryFunction = multiClassSummary,
-  verboseIter = TRUE,
-  allowParallel = TRUE
-)
-
-# Create valid variable names for class levels
-training_samples_m$Cluster <- make.names(training_samples_m$Cluster)
-
-rf.model_cv_m1 <- train(x = training_samples_m[1:ngenes],
-                        y= training_samples_m$Cluster,
-                        method = "ranger",
-                        metric = "ROC",
-                        importance= 'impurity',
-                        trControl = ctrl,
-                        num.trees = 750)
-
-rf.model_cv_m1
-
-# Save the model to a file
-saveRDS(rf.model_cv_m1, file = "rf_model_cv_m1.rds")
-
-
-rf.model_cv_m1 <- readRDS("rf_model_cv_m1.rds")
-
-
-#get the predictions
-rfcv_pred_m1 <- predict(rf.model_cv_m1, test_samples_m[1:ngenes])
-
-# Create valid variable names for class levels
-test_samples_m$Cluster <- make.names(test_samples_m$Cluster)
-
-# compare the predictins to the actual classifications
-rfcv_cm_m1 <- caret::confusionMatrix(rfcv_pred_m1, as.factor(test_samples_m$Cluster))
-
-rfcv_cm_m1
-
-
-
-set.seed(123)
-
-ctrl <- trainControl(
-  method = "repeatedcv",
-  number = 15,
-  repeats = 15,
-  classProbs = T,
-  savePredictions = T,
-  summaryFunction = multiClassSummary,
-  verboseIter = TRUE,
-  allowParallel = TRUE
-)
-
-# Create valid variable names for class levels
-training_samples_m$Cluster <- make.names(training_samples_m$Cluster)
-
-rf.model_cv_m2 <- train(x = training_samples_m[1:ngenes],
-                        y= training_samples_m$Cluster,
-                        method = "ranger",
-                        metric = "ROC",
-                        importance= 'impurity',
-                        trControl = ctrl,
-                        num.trees = 1000)
-
-rf.model_cv_m2
-
-
-# Save the model to a file
-saveRDS(rf.model_cv_m2, file = "rf_model_cv_m2.rds")
-
-
-rf.model_cv_m2 <- readRDS("rf_model_cv_m2.rds")
-
-
-#get the predictions
-rfcv_pred_m2 <- predict(rf.model_cv_m2, test_samples_m[1:ngenes])
-
-# Create valid variable names for class levels
-test_samples_m$Cluster <- make.names(test_samples_m$Cluster)
-
-# compare the predictins to the actual classifications
-rfcv_cm_m2 <- caret::confusionMatrix(rfcv_pred_m2, as.factor(test_samples_m$Cluster))
-
-rfcv_cm_m2
-
-
-rf.model_cv_m3 <- readRDS("rf_model_cv_m3.rds")
-
-
-#get the predictions
-rfcv_pred_m3 <- predict(rf.model_cv_m3, test_samples_m[1:ngenes])
-
-# Create valid variable names for class levels
-test_samples_m$Cluster <- make.names(test_samples_m$Cluster)
-
-# compare the predictins to the actual classifications
-rfcv_cm_m3 <- caret::confusionMatrix(rfcv_pred_m3, as.factor(test_samples_m$Cluster))
-
-rfcv_cm_m3
 
 
