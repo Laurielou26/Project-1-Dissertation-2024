@@ -13,24 +13,21 @@ library(survival)
 library(survminer)
 library(plotROC)
 
-#data being used 
+#data being used (change to relevant file path)
 methylation_data<- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_methylation_hm27_hm450_merged.txt")
-merged_data_df_K
+merged_data_df_K #From previous analysis, will be in environment
 
 methylation <- methylation_data
 
 #remove metastatic samples
 
-
-#METHYLATION 
-
 head(methylation)
 
-# Option 1: Remove rows with NA values
+# Remove rows with NA values and unnecessary columns 
 methylation <- methylation[complete.cases(methylation[, -(1:4)]), ]
 
 
-# Metastatic samples identified
+# Metastatic samples identified, see Step 1
 metastatic_samples <- c("TCGA-18-3414", "TCGA-18-3417", "TCGA-33-4587", "TCGA-33-6738", 
                         "TCGA-33-A4WN", "TCGA-33-A5GW", "TCGA-33-AAS8", "TCGA-33-AASB", 
                         "TCGA-33-AASD", "TCGA-33-AASI", "TCGA-33-AASJ", "TCGA-33-AASL", 
@@ -54,7 +51,7 @@ metastatic_samples <- c("TCGA-18-3414", "TCGA-18-3417", "TCGA-33-4587", "TCGA-33
                         "TCGA-O2-A52N", "TCGA-O2-A52Q", "TCGA-O2-A52S", "TCGA-O2-A52V", 
                         "TCGA-O2-A52W", "TCGA-O2-A5IB")
 
-# Convert patient IDs to match the column names in the RNA-seq data
+# Convert patient IDs to match the column names in the methylation data
 metastatic_columns <- paste0(gsub("-", ".", metastatic_samples), ".01")
 
 # Check if these columns exist in the methylation dataframe
