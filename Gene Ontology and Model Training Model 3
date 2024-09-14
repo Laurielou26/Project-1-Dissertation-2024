@@ -10,7 +10,7 @@ dim(test_samples_multi)
 
 
 # Extract variable importance
-rf_varImp_multi <- varImp(rf_multi_model2, scale = FALSE)
+rf_varImp_multi <- varImp(rf.model_multi_cv, scale = FALSE)
 
 # Print the variable importance
 print(rf_varImp_multi)
@@ -23,6 +23,60 @@ top_20_varImp_multi <- rf_varImp_multi$importance %>%
   head(20)
 
 print(top_20_varImp_multi)
+
+
+#GENE ONTOLOGY 
+
+# Install and load the required packages
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("clusterProfiler")
+BiocManager::install("org.Hs.eg.db")  # For human gene annotation, use the appropriate package for your species
+
+library(clusterProfiler)
+library(org.Hs.eg.db)
+
+# List of top 20 genes
+top_20_genes <- top_20_varImp_multi$Gene
+
+# Convert gene symbols to Entrez IDs using bitr
+top_20_genes_entrez <- bitr(top_20_genes, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+# Identify unmapped genes
+unmapped_genes <- setdiff(top_20_genes, top_20_genes_entrez$SYMBOL)
+
+# Manually create a mapping for the unmapped genes
+manual_mapping <- data.frame(
+  SYMBOL = c("KRT17", "COL5A3", "POU2AF1", "GULP1", "KRT19", "TCF3", "HBEGF"), # Replace with actual gene symbols
+  ENTREZID = c("3872", "50509", "5450", "51454", "3880", "6929", "1839") # Replace with corresponding Entrez IDs
+)
+
+# Combine automatic and manual mappings
+complete_mapping <- rbind(top_20_genes_entrez, manual_mapping)
+
+# Check the complete mapping
+print(complete_mapping)
+
+
+# Perform GO enrichment analysis
+go_enrich <- enrichGO(gene         = complete_mapping$ENTREZID,
+                      OrgDb        = org.Hs.eg.db,
+                      keyType      = 'ENTREZID',
+                      ont          = "ALL",  # Can be "BP", "MF", "CC", or "ALL"
+                      pAdjustMethod = "BH",
+                      pvalueCutoff = 0.05,
+                      qvalueCutoff = 0.2)
+
+# View the results
+summary(go_enrich)
+
+# Visualize the GO enrichment results
+dotplot(go_enrich, showCategory=20)
+
+# Save the dot plot as a PNG file
+ggsave("GO_enrichment_dotplot_methyl.png", plot = last_plot(), width = 10, height = 8, dpi = 300)
+
 
 # Select the top 20 genes
 selected_genes <- training_samples_multi[, top_20_varImp_multi$Gene]
