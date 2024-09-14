@@ -69,6 +69,45 @@ ggplot(top_20_varImp_with_symbols, aes(x = reorder(Hugo_Symbol, Overall), y = Ov
   theme_minimal()  # Use a clean theme
 
 
+#GENE ONTOLOGY 
+
+# Install and load the required packages
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("clusterProfiler")
+BiocManager::install("org.Hs.eg.db")  # For human gene annotation, use the appropriate package for your species
+
+library(clusterProfiler)
+library(org.Hs.eg.db)
+
+# List of top 20 genes
+top_20_genes <- top_20_varImp_with_symbols$Hugo_Symbol
+
+# Convert gene symbols to Entrez IDs
+top_20_genes_entrez <- bitr(top_20_genes, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+# Check the converted Entrez IDs
+print(top_20_genes_entrez)
+
+# Perform GO enrichment analysis
+go_enrich <- enrichGO(gene         = top_20_genes_entrez$ENTREZID,
+                      OrgDb        = org.Hs.eg.db,
+                      keyType      = 'ENTREZID',
+                      ont          = "ALL",  # Can be "BP", "MF", "CC", or "ALL"
+                      pAdjustMethod = "BH",
+                      pvalueCutoff = 0.05,
+                      qvalueCutoff = 0.2)
+
+# View the results
+summary(go_enrich)
+
+# Visualize the GO enrichment results
+dotplot(go_enrich, showCategory=20)
+
+# Save the dot plot as a PNG file
+ggsave("GO_enrichment_dotplot_gene_exp.png", plot = last_plot(), width = 10, height = 8, dpi = 300)
+
 #Train model 
 
 TrainingDataIndex <- readRDS("TrainingDataIndex.rds")
