@@ -14,7 +14,6 @@ library(plotROC)
 
 #data being used
 
-
 filtered_rna_seq_data_50 <- filtered_rna_seq_data_reset_50
 
 #Remove hugo symbol from RNA data (leave entrex gene id)
