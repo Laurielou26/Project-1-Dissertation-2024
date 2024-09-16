@@ -8,7 +8,9 @@ Repository Structure
 The R code is divided into several scripts, each corresponding to a specific section of the analysis. Below is an overview of the sections and their corresponding scripts:
 
 2.3	RNA-Seq Data Preprocessing	= Step 1: Automated mRNA Filtering.R
+
 2.4	Optimal Clustering Analysis =	Step 2: Optimal Clustering Algorithm.R
+
 2.5	K-means Clustering Analysis	= Step 3: K-means Clustering.R
 (Optional) Hierarchical Clustering	= Step 3.1: Hierarchical Clustering.R
 2.5.1	RNA-Seq Heatmap	= Step 4: Gene Expression Heatmap.R
