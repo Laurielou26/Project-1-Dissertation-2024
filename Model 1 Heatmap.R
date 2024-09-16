@@ -9,7 +9,7 @@ heatmap_data <- as.matrix(sorted_training_samples[, top_20_varImp$Gene])
 # Prepare annotation data for the heatmap with sorted rows
 annotation_data <- data.frame(Cluster = sorted_training_samples$Cluster)
 row.names(annotation_data) <- rownames(sorted_training_samples)  # Ensure row names match the sample IDs in heatmap data
-# Adjusting heatmap appearance
+
 
 
 #Gene names 
@@ -53,10 +53,10 @@ pheatmap(heatmap_data,
          cluster_rows = FALSE,   # Keep clusters as they are already sorted
          cluster_cols = TRUE,    # Cluster genes
          scale = "row",
-         show_rownames = FALSE,  # Hide row names (samples)
-         show_colnames = TRUE,   # Show column names (genes)
+         show_rownames = FALSE, 
+         show_colnames = TRUE,  
          annotation_row = annotation_data,  # Add cluster assignments as annotations
          color = colorRampPalette(c("navy", "white", "firebrick3"))(50),  # Custom color palette
          main = "Heatmap of Top 20 Most Important Genes with Ordered Clusters",
-         fontsize_col = 10,      # Adjust font size for gene names
-         fontsize_row = 6)       # Adjust font size for sample labels
+         fontsize_col = 10,     
+         fontsize_row = 6)       
