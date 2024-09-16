@@ -1,0 +1,465 @@
+# Load necessary libraries
+library(tidyverse)
+
+# Read in the data (Change to relevant file paths)
+protein <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_rppa.txt")
+
+# Load in sample clusters
+sample_clusters_k<- read.csv("sample_clusters_k.csv")
+
+# Process protein data
+protein_df <- as.data.frame(t(protein))
+colnames(protein_df) <- protein_df[1,]
+protein_df <- protein_df[-1, ]
+rownames(protein_df) <- NULL
+protein_df$Sample_ID <- colnames(protein)[-1]
+protein_df <- protein_df %>% relocate(Sample_ID)
+
+# Merge with sample clusters
+merged_df <- merge(protein_df, sample_clusters_k, by = "Sample_ID")
+
+# Filter data to include only clusters 3 and 5
+filtered_df <- merged_df %>%
+  filter(Cluster %in% c(3, 5))
+
+# Reshape data to long format
+protein_long <- filtered_df %>%
+  pivot_longer(cols = -c(Sample_ID, Cluster), names_to = "Protein", values_to = "Expression")
+
+# Ensure Cluster is a factor
+protein_long$Cluster <- as.factor(protein_long$Cluster)
+
+# Function to perform ANOVA for each protein
+perform_anova <- function(protein_name, data) {
+  subset_data <- data %>% filter(Protein == protein_name)
+  subset_data <- na.omit(subset_data)
+  if (nlevels(factor(subset_data$Cluster)) > 1) {
+    anova_result <- aov(Expression ~ Cluster, data = subset_data)
+    p_value <- summary(anova_result)[[1]][["Pr(>F)"]][1]
+   
+    # Perform Shapiro-Wilk test on the residuals of the ANOVA
+    shapiro_test <- shapiro.test(residuals(anova_result))
+    shapiro_p_value <- shapiro_test$p.value
+    
+    return(list(anova_p_value = p_value, shapiro_p_value = shapiro_p_value))
+  } else {
+    return(list(anova_p_value = NA, shapiro_p_value = NA))  # Return NA if not enough levels
+  }
+}
+
+# Perform ANOVA for each protein
+unique_proteins <- unique(protein_long$Protein)
+anova_results <- data.frame(Protein = character(), anova_p_value = numeric(), shapiro_p_value = numeric(), stringsAsFactors = FALSE)
+
+for (protein in unique_proteins) {
+  result <- perform_anova(protein, protein_long)
+  anova_results <- rbind(anova_results, data.frame(Protein = protein, 
+                                                   anova_p_value = result$anova_p_value, 
+                                                   shapiro_p_value = result$shapiro_p_value, 
+                                                   stringsAsFactors = FALSE))
+}
+
+# Remove rows with NA p-values and apply multiple testing corrections
+anova_results <- na.omit(anova_results) %>%
+  mutate(bonferroni_corrected_p = p.adjust(anova_p_value, method = "bonferroni"),
+         BH_corrected_p = p.adjust(anova_p_value, method = "BH"),
+         fdr_corrected_p = p.adjust(anova_p_value, method = "fdr"))
+
+# Print ANOVA results
+print(anova_results)
+
+
+# Tukey's HSD for significant results
+significant_df <- anova_results %>%
+  filter(BH_corrected_p < 0.05 | fdr_corrected_p < 0.05)
+
+shapiro_sig_results <- significant_df %>% filter(shapiro_p_value > 0.05)
+
+#reload protein data for merging 
+protein <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_rppa.txt")
+
+#merge for protein names 
+merged_results <- merge(shapiro_sig_results, protein, by.x = "Protein", by.y = "Composite.Element.REF")
+
+#remove unnecessary columns 
+final_results <- merged_results %>%
+  select(Protein, anova_p_value, BH_corrected_p, bonferroni_corrected_p, fdr_corrected_p)
+
+print(final_results$Protein)
+
+#Tukey's HSD test
+tukey_results_list <- list()
+for (significant_protein in final_results$Protein) {
+  subset_data <- protein_long %>% filter(Protein == significant_protein)
+  if (nrow(subset_data) > 0 && length(unique(subset_data$Cluster)) > 1) {
+    tukey_result <- TukeyHSD(aov(Expression ~ Cluster, data = subset_data))
+    tukey_df <- as.data.frame(tukey_result$Cluster)
+    tukey_df$Protein <- significant_protein
+    tukey_results_list[[significant_protein]] <- tukey_df
+  } else {
+    tukey_results_list[[significant_protein]] <- data.frame(
+      Comparison = NA,
+      Difference = NA,
+      `Lower CI` = NA,
+      `Upper CI` = NA,
+      `P adj` = NA,
+      Protein = significant_protein,
+      gene = final_results$NAME
+    )
+  }
+}
+
+tukey_results_df <- bind_rows(tukey_results_list)
+print(tukey_results_df)
+
+# Merge Tukey results with final results
+merged_results <- merge(tukey_results_df, final_results, by.x = "Protein")
+final_results <- merged_results %>%
+  select(Protein, diff, lwr, upr, `p adj`, anova_p_value, BH_corrected_p, bonferroni_corrected_p, fdr_corrected_p,)
+
+sorted_results <- final_results %>%
+  arrange(desc(diff))
+
+top_20_hyperpro <- sorted_results %>%
+  head(20) %>%
+  select(Protein, diff, lwr, upr, `p adj`, anova_p_value, BH_corrected_p)
+
+top_20_underpro <- sorted_results %>%
+  tail(20) %>%
+  select(Protein, diff, lwr, upr, `p adj`, anova_p_value, BH_corrected_p)
+
+print("Top 20 Hyperpro")
+print(top_20_hyperpro)
+print("Top 20 Underpro")
+print(top_20_underpro)
+
+
+#Repeat for Cluster 5 vs pooled clusters 
+
+#reload protein data 
+protein <- read.delim("C:/Users/lauri/OneDrive - Queen's University Belfast/Master's/Dissertation/Dissertation/Dataset/Lung/lusc_tcga_pan_can_atlas_2018/data_rppa.txt")
+
+# Filter data to include Cluster 5 vs pooled clusters (1, 2, 3, 4, 6)
+filtered_df_P <- merged_df %>%
+  filter(Cluster %in% c(5, 1, 2, 3, 4, 6)) %>%
+  mutate(Cluster = ifelse(Cluster == 5, "Cluster 5", "Other Clusters"))
+
+# Reshape data to long format
+protein_long_P <- filtered_df_P %>%
+  pivot_longer(cols = -c(Sample_ID, Cluster), names_to = "Protein", values_to = "Expression")
+
+# Ensure Cluster is a factor
+protein_long_P$Cluster <- as.factor(protein_long_P$Cluster)
+
+# Function to perform ANOVA for each protein in pooled analysis
+perform_anova_p <- function(protein_name, data) {
+  subset_data_P <- data %>% filter(Protein == protein_name)
+  subset_data_P <- na.omit(subset_data_P)
+  if (nlevels(factor(subset_data_P$Cluster)) > 1) {
+    anova_result_P <- aov(Expression ~ Cluster, data = subset_data_P)
+    p_value <- summary(anova_result_P)[[1]][["Pr(>F)"]][1]
+   
+    # Perform Shapiro-Wilk test on the residuals of the ANOVA
+    shapiro_test <- shapiro.test(residuals(anova_result_P))
+    shapiro_p_value <- shapiro_test$p.value
+    
+    return(list(anova_p_value = p_value, shapiro_p_value = shapiro_p_value))
+  } else {
+    return(list(anova_p_value = NA, shapiro_p_value = NA))  # Return NA if not enough levels
+  }
+}
+
+# Perform ANOVA for each protein in pooled clusters
+unique_proteins_P <- unique(protein_long_P$Protein)
+anova_results_P <- data.frame(Protein = character(), anova_p_value = numeric(), shapiro_p_value = numeric(), stringsAsFactors = FALSE)
+
+for (protein in unique_proteins_P) {
+  result <- perform_anova_p(protein, protein_long_P)
+  anova_results_P <- rbind(anova_results_P, data.frame(Protein = protein, anova_p_value = result$anova_p_value, shapiro_p_value = result$shapiro_p_value, stringsAsFactors = FALSE))
+}
+
+# Remove rows with NA p-values and apply multiple testing corrections
+anova_results_P <- na.omit(anova_results_P) %>%
+  mutate(bonferroni_corrected_p = p.adjust(anova_p_value, method = "bonferroni"),
+         BH_corrected_p = p.adjust(anova_p_value, method = "BH"),
+         fdr_corrected_p = p.adjust(anova_p_value, method = "fdr"))
+
+# Print ANOVA results for pooled analysis
+print(anova_results_P)
+
+# Save results to CSV files
+write.csv(anova_results_P, "anova_results_P.csv", row.names = FALSE)
+
+# Filter significant proteins for further analysis
+significant_df_p <- anova_results_P %>%
+  filter(BH_corrected_p < 0.05 | fdr_corrected_p < 0.05)
+
+sig_shapiro_p <- significant_df_p %>% filter(shapiro_p_value > 0.05)
+
+# Perform Tukey's HSD test for each significant protein
+tukey_results_list <- list()
+for (significant_protein in sig_shapiro_p$Protein) {
+  subset_data <- protein_long_P %>% filter(Protein == significant_protein)
+  if (nrow(subset_data) > 0 && length(unique(subset_data$Cluster)) > 1) {
+    tukey_result <- TukeyHSD(aov(Expression ~ Cluster, data = subset_data))
+    tukey_df <- as.data.frame(tukey_result$Cluster)
+    tukey_df$Protein <- significant_protein
+    tukey_results_list[[significant_protein]] <- tukey_df
+  } else {
+    tukey_results_list[[significant_protein]] <- data.frame(
+      Comparison = NA,
+      Difference = NA,
+      lwr = NA,
+      upr = NA,
+      `p adj` = NA,
+      Protein = significant_protein
+    )
+  }
+}
+
+# Combine Tukey results into a single data frame
+tukey_results_df <- bind_rows(tukey_results_list)
+
+# Merge Tukey results with significant proteins
+merged_results <- merge(tukey_results_df, significant_df_p, by = "Protein")
+
+# Select and sort the final results
+final_results <- merged_results %>%
+  select(Protein, diff, lwr, upr, `p adj`, anova_p_value, BH_corrected_p, bonferroni_corrected_p, fdr_corrected_p) %>%
+  arrange(desc(diff))
+
+top_20_hyperpro_p <- final_results %>%
+  head(20) %>%
+  select(Protein, diff, lwr, upr, `p adj`, anova_p_value, BH_corrected_p)
+
+top_20_underpro_p <- final_results %>%
+  tail(20) %>%
+  select(Protein, diff, lwr, upr, `p adj`, anova_p_value, BH_corrected_p)
+
+
+# Print results
+print("Top 20 Hyperpro")
+print(top_20_hyperpro_p)
+print("Top 20 Underpro")
+print(top_20_underpro_p)
+
+
+#LOOKING AT HYPOMETHYLATED EXPRESSION
+#NOTE THE TOP 20 HYPERMETHYLATED SAMPLES ARE WITH RESPECT OF OTHER CLUSTERS TO CLUSTER 5 THEREFORE THEY ARE MORE METHYLATED IN THE OTHER CLUSTERS COMPARED TO CLUSTER 5 
+
+filtered_rna_seq_data_50 <- read.csv("cleaned_metastatic_mrna_data.csv")
+
+#Prepare the data
+
+filtered_rna_seq_data_50 <- filtered_rna_seq_data_50[ ,-1]
+
+filtered_rna_seq_data_50 <- filtered_rna_seq_data_50 %>%
+  group_by(Entrez_Gene_Id) %>%
+  mutate(Entrez_Gene_Id = paste(Entrez_Gene_Id, row_number(), sep = "_")) %>%
+  ungroup()
+
+filtered_rna_seq_data_50 <- filtered_rna_seq_data_50 %>% column_to_rownames(var = "Entrez_Gene_Id")
+
+#  Scale the data
+
+filtered_rna_seq_data_scale <- scale(filtered_rna_seq_data_50)
+
+set.seed(123)  # For reproducibility
+k6 <- 6
+
+km_cols <- kmeans(t(filtered_rna_seq_data_scale), centers = k6, nstart = 25)
+col_clusters <- km_cols$cluster
+
+# K-means clustering on rows
+km_rows <- kmeans(filtered_rna_seq_data_scale, centers = k6, nstart = 25)
+row_clusters <- km_rows$cluster
+
+# Check cluster assignments
+table(row_clusters)
+table(col_clusters)
+
+# Make df for gene id and clusters
+gene_clusters <- data.frame(Gene_Name = rownames(filtered_rna_seq_data_50), Cluster = row_clusters)
+
+# Split protein names if necessary
+protein_names <- strsplit(top_20_underpro$Protein, split = "\\|")
+
+# Flatten the list of protein names and remove duplicates
+hypomethylated_genes <- unique(unlist(protein_names))
+
+# Remove trailing and leading spaces from protein names
+hypomethylated_genes <- trimws(hypomethylated_genes)
+
+# Print the unique, cleaned protein names
+print(hypomethylated_genes)
+
+
+
+# Extract samples for Cluster 5 and Cluster 3
+cluster_5_samples <- names(col_clusters[col_clusters == 5])
+cluster_3_samples <- names(col_clusters[col_clusters == 3])
+
+filtered_rna_seq_data_50 <- read.csv("cleaned_metastatic_mrna_data.csv")
+
+# Filter mRNA data for hypermethylated genes
+mRNA_data_hypo <- filtered_rna_seq_data_50[filtered_rna_seq_data_50$Hugo_Symbol %in% hypomethylated_genes, ]
+
+# Subset mRNA data for Cluster 5 and Cluster 3
+mRNA_data_cluster5 <- mRNA_data_hypo[, colnames(mRNA_data_hypo) %in% cluster_5_samples, drop = FALSE]
+mRNA_data_cluster3 <- mRNA_data_hypo[, colnames(mRNA_data_hypo) %in% cluster_3_samples, drop = FALSE]
+
+# Calculate average mRNA levels for each gene in Cluster 5 and Cluster 3
+mean_mRNA_cluster5 <- rowMeans(mRNA_data_cluster5, na.rm = TRUE)
+mean_mRNA_cluster3 <- rowMeans(mRNA_data_cluster3, na.rm = TRUE)
+
+# Combine the results into a data frame for comparison
+mRNA_comparison_cluster5_vs_3 <- data.frame(
+  Gene = mRNA_data_hypo$Hugo_Symbol,
+  Mean_mRNA_Cluster5 = mean_mRNA_cluster5,
+  Mean_mRNA_Cluster3 = mean_mRNA_cluster3
+)
+
+# Add a column to show the difference
+mRNA_comparison_cluster5_vs_3$Difference <- mRNA_comparison_cluster5_vs_3$Mean_mRNA_Cluster5 - mRNA_comparison_cluster5_vs_3$Mean_mRNA_Cluster3
+
+# Print the comparison table
+print(mRNA_comparison_cluster5_vs_3)
+
+# Cluster 5 vs Others
+
+# Split protein names if necessary
+protein_names_p <- strsplit(top_20_underpro_p$Protein, split = "\\|")
+
+# Flatten the list of protein names and remove duplicates
+hypomethylated_genes_p <- unique(unlist(protein_names_p))
+
+# Remove trailing and leading spaces from protein names
+hypomethylated_genes_p <- trimws(hypomethylated_genes_p)
+
+# Print the unique, cleaned protein names
+print(hypomethylated_genes_p)
+
+# Extract samples for Cluster 5 and all other clusters
+cluster_5_samples <- names(col_clusters[col_clusters == 5])
+other_clusters_samples <- names(col_clusters[col_clusters != 5])
+
+filtered_rna_seq_data_50 <- read.csv("cleaned_metastatic_mrna_data.csv")
+
+# Filter mRNA data for hypomethylated genes
+mRNA_data_hypo_p <- filtered_rna_seq_data_50[filtered_rna_seq_data_50$Hugo_Symbol %in% hypomethylated_genes_p, ]
+
+# Subset mRNA data for Cluster 5 and other clusters
+mRNA_data_cluster5 <- mRNA_data_hypo_p[, colnames(mRNA_data_hypo_p) %in% cluster_5_samples, drop = FALSE]
+mRNA_data_other_clusters <- mRNA_data_hypo_p[, colnames(mRNA_data_hypo_p) %in% other_clusters_samples, drop = FALSE]
+
+# Calculate average mRNA levels for each gene in Cluster 5 and other clusters
+mean_mRNA_cluster5 <- rowMeans(mRNA_data_cluster5, na.rm = TRUE)
+mean_mRNA_other_clusters <- rowMeans(mRNA_data_other_clusters, na.rm = TRUE)
+
+# Combine the results into a data frame for comparison
+mRNA_comparison_cluster5_vs_others <- data.frame(
+  Gene = mRNA_data_hypo_p$Hugo_Symbol,
+  Mean_mRNA_Cluster5 = mean_mRNA_cluster5,
+  Mean_mRNA_OtherClusters = mean_mRNA_other_clusters
+)
+
+# Add a column to show the difference
+mRNA_comparison_cluster5_vs_others$Difference <- mRNA_comparison_cluster5_vs_others$Mean_mRNA_Cluster5 - mRNA_comparison_cluster5_vs_others$Mean_mRNA_OtherClusters
+
+# Print the comparison table
+print(mRNA_comparison_cluster5_vs_others)
+
+
+
+#LOOK AT HYPERMETHYLATED GENES 
+
+
+
+# Split protein names if necessary
+protein_names <- strsplit(top_20_hyperpro$Protein, split = "\\|")
+
+# Flatten the list of protein names and remove duplicates
+hypermethylated_genes <- unique(unlist(protein_names))
+
+# Remove trailing and leading spaces from protein names
+hypermethylated_genes <- trimws(hypermethylated_genes)
+
+# Print the unique, cleaned protein names
+print(hypermethylated_genes)
+
+
+# Extract samples for Cluster 5 and Cluster 3
+cluster_5_samples <- names(col_clusters[col_clusters == 5])
+cluster_3_samples <- names(col_clusters[col_clusters == 3])
+
+filtered_rna_seq_data_50 <- read.csv("cleaned_metastatic_mrna_data.csv")
+
+# Filter mRNA data for hypermethylated genes
+mRNA_data_hyper <- filtered_rna_seq_data_50[filtered_rna_seq_data_50$Hugo_Symbol %in% hypermethylated_genes, ]
+
+# Subset mRNA data for Cluster 5 and Cluster 3
+mRNA_data_cluster5 <- mRNA_data_hyper[, colnames(mRNA_data_hyper) %in% cluster_5_samples, drop = FALSE]
+mRNA_data_cluster3 <- mRNA_data_hyper[, colnames(mRNA_data_hyper) %in% cluster_3_samples, drop = FALSE]
+
+# Calculate average mRNA levels for each gene in Cluster 5 and Cluster 3
+mean_mRNA_cluster5 <- rowMeans(mRNA_data_cluster5, na.rm = TRUE)
+mean_mRNA_cluster3 <- rowMeans(mRNA_data_cluster3, na.rm = TRUE)
+
+# Combine the results into a data frame for comparison
+mRNA_comparison_cluster5_vs_3 <- data.frame(
+  Gene = mRNA_data_hyper$Hugo_Symbol,
+  Mean_mRNA_Cluster5 = mean_mRNA_cluster5,
+  Mean_mRNA_Cluster3 = mean_mRNA_cluster3
+)
+
+# Add a column to show the difference
+mRNA_comparison_cluster5_vs_3$Difference <- mRNA_comparison_cluster5_vs_3$Mean_mRNA_Cluster5 - mRNA_comparison_cluster5_vs_3$Mean_mRNA_Cluster3
+
+# Print the comparison table
+print(mRNA_comparison_cluster5_vs_3)
+
+# Cluster 5 vs Others
+
+# Split protein names if necessary
+protein_names_p <- strsplit(top_20_hyperpro_p$Protein, split = "\\|")
+
+# Flatten the list of protein names and remove duplicates
+hypermethylated_genes_p <- unique(unlist(protein_names_p))
+
+# Remove trailing and leading spaces from protein names
+hypermethylated_genes_p <- trimws(hypermethylated_genes_p)
+
+# Print the unique, cleaned protein names
+print(hypermethylated_genes_p)
+
+
+# Extract samples for Cluster 5 and all other clusters
+cluster_5_samples <- names(col_clusters[col_clusters == 5])
+other_clusters_samples <- names(col_clusters[col_clusters != 5])
+
+filtered_rna_seq_data_50 <- read.csv("cleaned_metastatic_mrna_data.csv")
+
+# Filter mRNA data for hypomethylated genes
+mRNA_data_hyper_p <- filtered_rna_seq_data_50[filtered_rna_seq_data_50$Hugo_Symbol %in% hypermethylated_genes_p, ]
+
+# Subset mRNA data for Cluster 5 and other clusters
+mRNA_data_cluster5 <- mRNA_data_hyper_p[, colnames(mRNA_data_hyper_p) %in% cluster_5_samples, drop = FALSE]
+mRNA_data_other_clusters <- mRNA_data_hyper_p[, colnames(mRNA_data_hyper_p) %in% other_clusters_samples, drop = FALSE]
+
+# Calculate average mRNA levels for each gene in Cluster 5 and other clusters
+mean_mRNA_cluster5 <- rowMeans(mRNA_data_cluster5, na.rm = TRUE)
+mean_mRNA_other_clusters <- rowMeans(mRNA_data_other_clusters, na.rm = TRUE)
+
+# Combine the results into a data frame for comparison
+mRNA_comparison_cluster5_vs_others <- data.frame(
+  Gene = mRNA_data_hyper_p$Hugo_Symbol,
+  Mean_mRNA_Cluster5 = mean_mRNA_cluster5,
+  Mean_mRNA_OtherClusters = mean_mRNA_other_clusters
+)
+
+# Add a column to show the difference
+mRNA_comparison_cluster5_vs_others$Difference <- mRNA_comparison_cluster5_vs_others$Mean_mRNA_Cluster5 - mRNA_comparison_cluster5_vs_others$Mean_mRNA_OtherClusters
+
+# Print the comparison table
+print(mRNA_comparison_cluster5_vs_others)
+
