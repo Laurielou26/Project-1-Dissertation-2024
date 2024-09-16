@@ -44,12 +44,14 @@ The R code is divided into several scripts, each corresponding to a specific sec
 3.11.8	Model Retraining with Important Variables = 	Gene Ontology and Model Retraining Model 1.R, Gene Ontology and Model Retraining Model 2.R, Gene Ontology and Model Retraining Model 3.R
 
 How to Use
+
 Clone the repository:
 git clone https://github.com/Laurielou26/Project-1-Dissertation-2024.git
 Open the project in RStudio.
 Run the scripts in the order specified in the table above.
 
 Data Source
+
 The data used in this project was obtained from cBioPortal for Cancer Genomics.
 Data source link : https://www.cbioportal.org/study/summary?id=lusc_tcga_pan_can_atlas_2018 
 
