@@ -47,7 +47,7 @@ methylation <- methylation_data
 
 head(methylation)
 
-# Option 1: Remove rows with NA values
+#: Remove rows with NA values
 methylation <- methylation[complete.cases(methylation[, -(1:4)]), ]
 
 
@@ -129,7 +129,7 @@ methyl_df_numeric_df$var <- apply(methyl_df_numeric_df, 1, var)
 # Filter based on variance threshold
 methyl_filtered <- methyl_df_numeric_df %>% filter( med >= quantile(med,c(0.5, 0.9), na.rm =FALSE) & var >= quantile (var, c(0.5,0.9), na.rm =TRUE)) 
 
-#remove the var and med columns 
+# remove the var and med columns 
 methyl_filtered <- methyl_filtered[1:(ncol(methyl_filtered)-2)]
 
 # View the filtered data
