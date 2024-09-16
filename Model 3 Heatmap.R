@@ -45,10 +45,10 @@ pheatmap(heatmap_data,
          cluster_rows = FALSE,   # Keep clusters as they are already sorted
          cluster_cols = TRUE,    # Cluster genes
          scale = "row",
-         show_rownames = FALSE,  # Hide row names (samples)
-         show_colnames = TRUE,   # Show column names (genes)
+         show_rownames = FALSE, 
+         show_colnames = TRUE,   
          annotation_row = annotation_data,  # Add cluster assignments as annotations
-         color = colorRampPalette(c("navy", "white", "firebrick3"))(50),  # Custom color palette
+         color = colorRampPalette(c("navy", "white", "firebrick3"))(50),  
          main = "Heatmap of Top 20 Most Important Genes and Methylation Sites with Ordered Clusters",
-         fontsize_col = 10,      # Adjust font size for gene names
-         fontsize_row = 6)       # Adjust font size for sample labels
+         fontsize_col = 10,      
+         fontsize_row = 6)      
