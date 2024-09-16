@@ -84,10 +84,10 @@ methyl_df <- t(methyl_df)
 #Store row names 
 rownames_original <- rownames(methyl_df)
 
-# Step 2: Convert the data to numeric 
+# Convert the data to numeric 
 methyl_df_numeric <- apply(methyl_df, 2, as.numeric)
 
-# Step 3: Reassign the row names
+# Reassign the row names
 rownames(methyl_df_numeric) <- rownames_original
 
 # Check the structure of the new data frame
